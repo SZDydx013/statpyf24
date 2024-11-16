@@ -1,9 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Fri Nov 15 15:20:54 2024
 
-@author: akashpatel
+Obeys the following rules:
+
+1) RNAPs can attach to the lattice at site 0 and will detach only at the end of the lattice. One RNAP being on the lattice does not stop another RNAP from attaching at site 0 (ie. multiple RNAPs can be present along the lattice at once). The rate at which new RNAPs attach to the lattice is a fixed value
+2) RNAPs are unidirectional and will only move +1 until they reach the end
+3) TFs can attach and detach from the lattice randomly at some defined rate. This means for each step a TF takes there is a chance it will also just remove itself from the lattice rather than proceed in some direction
+4) 2 molecules cant occupy the same site at once. RNAP movement gets priority and if there is an RNAP in the way, the TF must move the other way rather than overlap with the RNAP
+5) Only 1 TF will be on the lattice at once, though multiple RNAPs can. The total time taken for the TF to reach the target site is what's recorded. If the TF hops off the lattice and randomly attaches back on the lattice at another position the step counter does not reset. The count resets only once the TF has actually hit the target site
+
 """
 import numpy as np
 import matplotlib.pyplot as plt
