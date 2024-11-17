@@ -23,7 +23,7 @@ class Lattice:
         target_site=None,
         rnap_attach_rate=0.2,
         rnap_move_rate=0.9,
-        rnap_detach_rate=0.9,
+        rnap_detach_rate=1,
         tf_attach_rate=0.01,
         tf_detach_rate=0.05,
         tf_move_rate=1.0,
@@ -94,6 +94,8 @@ class Lattice:
         return self.lattice_age
 
     def site_empty(self, site_number):
+        if site_number < 0 or site_number >= self.lattice_length:
+            return False
         return self.lattice[site_number] == 0
 
     def rate_proceed(self, rate):
@@ -107,7 +109,9 @@ class Lattice:
             self.rnap_positions.append(0)
 
     def move_rnaps(self):
-        for rnap_number, position in enumerate(reversed(self.rnap_positions)):
+        # print(self.lattice)
+        # print(self.rnap_positions)
+        for rnap_number, position in enumerate(list(self.rnap_positions)):
             # Attempt to detach if RNAP is on the last site
             if (
                 position == self.lattice_length - 1 and
@@ -118,12 +122,13 @@ class Lattice:
                 return
             # Move the RNAP at the rate if the next site is free
             new_position = position + 1
+            # print(new_position, self.site_empty(new_position))
             if (
                 self.site_empty(new_position) and
                 self.rate_proceed(self.rnap_move_rate)
             ):
                 self.lattice[position] = 0      # Empty the current position
-                self.lattice[new_position] = 0  # Occupy the next position
+                self.lattice[new_position] = 1  # Occupy the next position
                 self.rnap_positions[rnap_number] = new_position
 
     def attach_tf(self):
@@ -191,7 +196,13 @@ class Lattice:
 
     def tf_drawing(self, ax, x, y):
         ax.add_patch(mpatches.CirclePolygon(
-            (x+0.5, y+0.5), radius=0.4, color='k', resolution=3
+            (x+0.5, y+0.5), radius=0.4, color='g', resolution=3
+        ))
+
+    def rnap_drawing(self, ax, x, y):
+        ax.add_patch(mpatches.CirclePolygon(
+            (x+0.5, y+0.5), radius=0.4, color='purple',
+            resolution=6
         ))
 
     def visualization_image(self):
@@ -201,6 +212,8 @@ class Lattice:
         ax.set_xlim(0, self.lattice_length)
         ax.set_ylim(0, 1.2)
         plt.text(0, 1.1, f"Step {self.lattice_age}")
+        print(self.lattice)
+        print(self.rnap_positions)
         for site_number in range(self.lattice_length):
             if site_number == self.target_site:
                 site_color = 'orange'  # Make target site orange
@@ -208,9 +221,10 @@ class Lattice:
                 site_color = 'w'
             self.site_drawing(ax, site_number, 0, site_color)
             match self.lattice[site_number]:
+                case 1:
+                    self.rnap_drawing(ax, site_number, 0)
                 case 2:
                     self.tf_drawing(ax, site_number, 0)
-            pass
 
         return [plt.gca()]
 
