@@ -10,6 +10,9 @@ Obeys the following rules:
 """
 
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+import matplotlib.animation as animation
 
 
 class Lattice:
@@ -179,3 +182,45 @@ class Lattice:
 
     def on_target(self):
         return self.tf_position == self.target_site
+
+    def site_drawing(self, ax, x, y, inside_color='w'):
+        ax.add_patch(mpatches.Rectangle(
+            (x, y), 1, 1, color='k'))
+        ax.add_patch(mpatches.Rectangle(
+            (x+0.05, y+0.05), 0.9, 0.9, color=inside_color))
+
+    def tf_drawing(self, ax, x, y):
+        ax.add_patch(mpatches.CirclePolygon(
+            (x+0.5, y+0.5), radius=0.4, color='k', resolution=3
+        ))
+
+    def visualization_image(self):
+        plt.axes()
+        ax = plt.gca()
+        plt.axis('off')
+        ax.set_xlim(0, self.lattice_length)
+        ax.set_ylim(0, 1.2)
+        plt.text(0, 1.1, f"Step {self.lattice_age}")
+        for site_number in range(self.lattice_length):
+            if site_number == self.target_site:
+                site_color = 'orange'  # Make target site orange
+            else:
+                site_color = 'w'
+            self.site_drawing(ax, site_number, 0, site_color)
+            match self.lattice[site_number]:
+                case 2:
+                    self.tf_drawing(ax, site_number, 0)
+            pass
+
+        return [plt.gca()]
+
+    def visualization_video(self):
+        self.reset()
+        ims = []
+        while not self.simulate_step():
+            ims.append(self.visualization_image())
+            if self.lattice_age > self.step_limit:
+                return None
+        ims.append(self.visualization_image())
+        return animation.ArtistAnimation(
+            plt.figure(), ims, interval=200, blit=True, repeat_delay=1000)

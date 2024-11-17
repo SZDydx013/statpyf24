@@ -8,6 +8,7 @@ This version assumes the following:
 
 """
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import numpy as np
 from lattice import Lattice
 
@@ -45,6 +46,31 @@ plt.axvline(mean_first_passage_time, color='red', linestyle='--',
 plt.legend()
 plt.show()
 
+sample_lattice = Lattice(
+    lattice_length=10,      # We want this to actually be readable
+    rnap_attach_rate=0,     # There will be no RNAPs in this
+    tf_attach_rate=1,       # TF will attach on the first step
+    tf_move_rate=1,         # TF will move on every step
+    tf_detach_rate=0,       # TF will never detach
+)
+
+'''
+sample_lattice.simulate_to_target()
+
+ani = animation.ArtistAnimation(
+    plt.figure(), sample_lattice.visualization_image(), interval=50, repeat_delay=1000
+)
+
+
+plt.show()
+
+print('assasasa')
+
+'''
+ani = sample_lattice.visualization_video()
+
+plt.show()
+'''
 # Now a sample lattice
 simulated_lattice.logging = True
 simulated_lattice.simulate_to_target()
@@ -62,3 +88,4 @@ plt.title(f"sample random walk of tf (starting position: {
           len(simulated_lattice.tf_path)})")
 plt.legend()
 plt.show()
+'''
