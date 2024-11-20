@@ -77,6 +77,7 @@ class Lattice:
         self.events = []
 
         # Lattice log varibles
+        self.lattice_history = []
         self.tf_path = []
         self.tf_detach_points = []
         self.tf_attach_points = []
@@ -97,6 +98,7 @@ class Lattice:
 
         if self.logging:
             self.tf_path.append((self.lattice_age, self.tf_position))
+            self.lattice_history.append((self.lattice_age, self.lattice))
 
         return self.on_target()
 
@@ -104,7 +106,6 @@ class Lattice:
         '''
         Compute the time until the TF reaches the target site.
         '''
-        self.reset()
         while not self.simulate_step():
             if self.step_count > self.step_limit:
                 print("Warning: TF never reached target")
@@ -174,7 +175,7 @@ class Lattice:
                 )
             # TF detachment
             self.events.append(
-                {"type": "tf_detach", "rate": self.tf_move_rate}
+                {"type": "tf_detach", "rate": self.tf_detach_rate}
             )
 
         # Calculate total rate
@@ -245,6 +246,31 @@ class Lattice:
         '''
         return self.tf_position == self.target_site
 
+    def place_particle(self, particle, position):
+        if not (0 <= particle <= 2):
+            raise Exception(f"{particle} is not a valid particle")
+        if not (0 <= position <= len(self.lattice)):
+            raise Exception(f"{position} is outside of the lattice")
+        match self.lattice[position]:
+            case 1:
+                self.tf_position = None
+            case 2:
+                for rnap_index, rnap_positon in enumerate(self.rnap_positions):
+                    if rnap_positon == position:
+                        self.rnap_positions.pop[rnap_index]
+        self.lattice[position] = 0
+        match particle:
+            case 1:
+                if self.tf_position is not None:
+                    raise Exception('There cannot be more than one TF')
+                self.tf_position = position
+            case 2:
+                self.rnap_positions.append(position)
+        self.lattice[position] = particle
+
+    def remove_particle(self, position):
+        self.place_particle(0, position)
+
     def site_drawing(self, ax, x, y, inside_color='w'):
         '''
         Draw a rectangle representing a site.
@@ -271,20 +297,22 @@ class Lattice:
             resolution=6
         ))
 
-    def visualization_image(self):
+    def visualization_image(self, time=None):
         # TODO: Implement a way to truncate the lattice so that
         #       only a region of interest is seen
         '''
         Generate a visualization of the lattice
         '''
+        if time is None:
+            time = self.lattice_age
         plt.axes()
         ax = plt.gca()
         plt.axis('off')
         ax.set_xlim(0, self.lattice_length)
         ax.set_ylim(0, 1.2)
-        plt.text(0, 1.1, f"Time: {self.lattice_age}")
-        print(self.lattice)
-        print(self.rnap_positions)
+        plt.text(0, 1.1, f"Time: {round(time, 1)}")
+        # print(self.lattice)
+        # print(self.rnap_positions)
         for site_number in range(self.lattice_length):
             if site_number == self.target_site:
                 site_color = 'orange'  # Make target site orange
@@ -297,16 +325,22 @@ class Lattice:
                 case 2:
                     self.tf_drawing(ax, site_number, 0)
 
-        return [plt.gca()]
+        return [ax]
 
     def visualization_video(self):
         # Generate a video from a full simulation of the lattice
         self.reset()
         ims = []
+        visualization_time = 0
+        vid_fig = plt.figure()
+        vid_fig.set_size_inches(self.lattice_length, 1.2)
+        vid_fig.set_dpi(300)
         while not self.simulate_step():
-            ims.append(self.visualization_image())
-            if self.lattice_age > self.step_limit:
+            while visualization_time < self.lattice_age:
+                ims.append(self.visualization_image(visualization_time))
+                visualization_time += 0.1
+            if self.step_count > self.step_limit:
                 return None
-        ims.append(self.visualization_image())
-        return animation.ArtistAnimation(
-            plt.figure(), ims, interval=200, blit=True, repeat_delay=1000)
+        ims.append(self.visualization_image(visualization_time))
+        return (vid_fig, animation.ArtistAnimation(
+            vid_fig, ims, interval=100, repeat_delay=1000))

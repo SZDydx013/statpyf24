@@ -1,22 +1,24 @@
 #!/usr/bin/env python
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import numpy as np
 from lattice import Lattice
 
 num_simulations = 100
 simulated_lattice = Lattice(
     lattice_length=100,
-    rnap_attach_rate=0.02,
-    rnap_move_rate=0.8,
-    rnap_detach_rate=1,
-    tf_attach_rate=0.01,       # TF will attach on the first step
-    tf_move_rate=1,         # TF will move on every step
-    tf_detach_rate=0.05,       # TF will never detach
+    rnap_attach_rate=0.1,
+    rnap_move_rate=1,
+    rnap_detach_rate=1e6,
+    tf_attach_rate=0.05,
+    tf_move_rate=1,
+    tf_detach_rate=0.02,
 )
 
 first_passage_times = []
 
 for _ in range(num_simulations):
+    simulated_lattice.reset()
     time = simulated_lattice.simulate_to_target()
     if time is not None:
         first_passage_times.append(time)
@@ -42,7 +44,22 @@ plt.axvline(mean_first_passage_time, color='red', linestyle='--',
 plt.legend()
 plt.show()
 
-sample_lattice = Lattice(
+simulated_lattice.reset()
+simulated_lattice.logging = True
+simulated_lattice.simulate_to_target()
+times, positions = zip(*simulated_lattice.tf_path)
+plt.figure(figsize=(10, 6))
+plt.plot(times, positions, linestyle='-')
+plt.title('Sample Random Walk')
+plt.xlabel('Time')
+plt.ylabel('Lattice Position')
+plt.axhline(simulated_lattice.target_site, color='red',
+            linestyle='--', label='Target Position')
+plt.legend()
+plt.grid()
+plt.show()
+
+visual_lattice = Lattice(
     lattice_length=10,
     rnap_attach_rate=0.2,
     rnap_move_rate=0.8,
@@ -52,38 +69,7 @@ sample_lattice = Lattice(
     tf_detach_rate=0.05,
 )
 
-'''
-sample_lattice.simulate_to_target()
-
-ani = animation.ArtistAnimation(
-    plt.figure(), sample_lattice.visualization_image(), interval=50, repeat_delay=1000
-)
-
-
+(vid_fig, ani) = visual_lattice.visualization_video()
+ffwriter = animation.FFMpegWriter(fps=10)
+ani.save('animation.mp4', writer=ffwriter)
 plt.show()
-
-print('assasasa')
-
-'''
-ani = sample_lattice.visualization_video()
-
-plt.show()
-'''
-# Now a sample lattice
-simulated_lattice.logging = True
-simulated_lattice.simulate_to_target()
-
-# plot the random walk
-plt.figure(figsize=(10, 6))
-plt.plot(simulated_lattice.tf_path, label="random walk of tf")
-plt.axhline(simulated_lattice.target_site, color='red', linestyle='--',
-            label=f"target site = {simulated_lattice.target_site}")
-plt.xlabel("steps")
-plt.ylabel("position on lattice")
-print(simulated_lattice.tf_attach_points)
-plt.title(f"sample random walk of tf (starting position: {
-          simulated_lattice.tf_attach_points[0]}, total steps taken: {
-          len(simulated_lattice.tf_path)})")
-plt.legend()
-plt.show()
-'''
