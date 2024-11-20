@@ -8,7 +8,6 @@ This version assumes the following:
 
 """
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
 import numpy as np
 from lattice import Lattice
 
@@ -19,11 +18,13 @@ simulated_lattice = Lattice(
     tf_attach_rate=1,       # TF will attach on the first step
     tf_move_rate=1,         # TF will move on every step
     tf_detach_rate=0,       # TF will never detach
+    logging=True,
 )
 
 first_passage_times = []
 
 for _ in range(num_simulations):
+    print(simulated_lattice.simulate_to_target())
     first_passage_times.append(simulated_lattice.simulate_to_target())
 
 # Calculate statistics

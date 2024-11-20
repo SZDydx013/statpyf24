@@ -25,7 +25,7 @@ class Lattice:
         rnap_move_rate=0.9,
         rnap_detach_rate=1,
         tf_attach_rate=0.01,
-        tf_detach_rate=0.05,
+        tf_detach_rate=0.004,
         tf_move_rate=1.0,
         logging=False,
         step_limit=1e5
@@ -41,7 +41,7 @@ class Lattice:
         # RNAP parameters
         # Probability of a new RNAP attaching to site 0 per step
         self.rnap_attach_rate = rnap_attach_rate
-        # RNAP always moves forward (priority movement over TF)
+        # RNAP always moves forward (+1)
         self.rnap_move_rate = rnap_move_rate
         # RNAP will detach at a fixed rate at the last site
         self.rnap_detach_rate = rnap_detach_rate
@@ -54,17 +54,27 @@ class Lattice:
         # TF can move randomly left (-1) or right (+1)
         self.tf_move_rate = tf_move_rate
 
+        # Simulation parameters
         self.logging = logging
-
         self.step_limit = step_limit
+
+        # Random number generator
+        self.prng = np.random.default_rng()
+
         self.reset()
 
     def reset(self):
+        '''
+        Remove all RNAP and TF from the lattice and reset its age
+        '''
         # Lattice state variables
+        # 0 = empty, 1 = RNAP, 2 = TF
         self.lattice = np.zeros(self.lattice_length, dtype=int)
-        self.lattice_age = 0
+        self.lattice_age = 0.0
+        self.step_count = 0
         self.tf_position = None
         self.rnap_positions = []
+        self.events = []
 
         # Lattice log varibles
         self.tf_path = []
@@ -73,145 +83,206 @@ class Lattice:
         self.tf_block_points = []
 
     def simulate_step(self):
-        self.lattice_age += 1
-        # The detach → move → attach order was chosen to prevent the particles
-        # from making multiple actions in a single step
-        self.move_rnaps()
-        self.attach_rnap()
-        # RNAP takes priority over TF
-        self.detach_tf()
-        self.move_tf()
-        self.attach_tf()
+        '''
+        Compute the time until the next event, and then change the lattice
+        based on the event.
+        '''
+        self.step_count += 1
+        total_rate = self.collect_rates()
+        # Determine the time until the next event
+        self.lattice_age += self.prng.exponential(scale=1/total_rate)
+
+        # Determine which event occurs
+        self.execute_event(total_rate)
+
+        if self.logging:
+            self.tf_path.append((self.lattice_age, self.tf_position))
 
         return self.on_target()
 
     def simulate_to_target(self):
+        '''
+        Compute the time until the TF reaches the target site.
+        '''
         self.reset()
         while not self.simulate_step():
-            if self.lattice_age > self.step_limit:
+            if self.step_count > self.step_limit:
+                print("Warning: TF never reached target")
                 return None
 
         return self.lattice_age
 
     def site_empty(self, site_number):
+        '''
+        Check if the given site is empty.
+        '''
         if site_number < 0 or site_number >= self.lattice_length:
-            return False
+            return False  # If the site is out of bounds, it is "occupied"
         return self.lattice[site_number] == 0
 
-    def rate_proceed(self, rate):
-        return np.random.random() < rate
+    def collect_rates(self):
+        '''
+        Check the lattice state, observing where the TF and RNAPs are.
 
-    def attach_rnap(self):
-        # Attach RNAPs to site 0 with fixed probability, and only if site 0 is
-        # empty
-        if np.random.random() < self.rnap_attach_rate and self.site_empty(0):
-            self.lattice[0] = 1
-            self.rnap_positions.append(0)
+        This function will return the total rate and set the event rates class
+        variable.
+        '''
+        self.events = []
 
-    def move_rnaps(self):
-        # print(self.lattice)
-        # print(self.rnap_positions)
-        for rnap_number, position in enumerate(list(self.rnap_positions)):
-            # Attempt to detach if RNAP is on the last site
-            if (
-                position == self.lattice_length - 1 and
-                self.rate_proceed(self.rnap_detach_rate)
-            ):
-                self.lattice[position] = 0
-                self.rnap_positions.pop(rnap_number)
-                return
-            # Move the RNAP at the rate if the next site is free
+        # RNAP attachment at site 0
+        if self.site_empty(0):
+            self.events.append(
+                {"type": "rnap_attach", "rate": self.rnap_attach_rate}
+            )
+
+        # RNAP movement and detachment
+        for rnap_index, position in enumerate(self.rnap_positions):
             new_position = position + 1
-            # print(new_position, self.site_empty(new_position))
-            if (
-                self.site_empty(new_position) and
-                self.rate_proceed(self.rnap_move_rate)
-            ):
-                self.lattice[position] = 0      # Empty the current position
-                self.lattice[new_position] = 1  # Occupy the next position
-                self.rnap_positions[rnap_number] = new_position
 
-    def attach_tf(self):
-        # Fail if the TF already exists or if the rate is too low
-        if (
-            self.tf_position is not None or
-            not self.rate_proceed(self.tf_attach_rate)
-        ):
-            return
-        empty_sites = np.where(self.lattice == 0)[0]
-        if len(empty_sites) > 0:
-            self.tf_position = np.random.choice(empty_sites)
-            self.lattice[self.tf_position] == 2
-            if self.logging:
-                self.tf_attach_points.append(self.tf_position)
-                self.tf_path.append(self.tf_position)
+            if self.site_empty(new_position):
+                self.events.append({
+                    "type": "rnap_move",
+                    "rate": self.rnap_move_rate,
+                    "rnap_pos": position,
+                    "rnap_index": rnap_index,
+                })
 
-    def detach_tf(self):
-        # Fail if the TF doesn't exist or the rate is too low
-        if (
-            self.tf_position is None or
-            not self.rate_proceed(self.tf_detach_rate)
-        ):
-            return
-        self.lattice[self.tf_position] = 0
-        if self.logging:
-            self.tf_detach_points.append(self.tf_position)
-        self.tf_position = None
+            if new_position >= len(self.lattice):
+                self.events.append({
+                    "type": "rnap_detach",
+                    "rate": self.rnap_detach_rate,
+                    "rnap_pos": position,
+                    "rnap_index": rnap_index,
+                })
 
-    def move_tf(self):
-        # Fail if the TF doesn't exist or the rate is too low
-        if (
-            self.tf_position is None or
-            not self.rate_proceed(self.tf_move_rate)
-        ):
-            return
-        new_position = self.tf_position + np.random.choice([-1, 1])
-        # Fail if the new position is out of the lattice
-        if (
-            new_position < 0 or
-            new_position >= self.lattice_length
-        ):
-            return
-        # Record if the new position is occupied and fail the move
-        if not self.site_empty(new_position):
-            if self.logging:
-                self.tf_block_points.append(self.tf_position)
-            return
+        if self.tf_position is None:  # TF attachment if it doesn't exist
+            empty_sites = np.where(self.lattice == 0)[0]
+            if len(empty_sites) > 0:
+                self.events.append({
+                    "type": "tf_attach",
+                    "rate": self.tf_attach_rate,
+                    "possible_sites": empty_sites,
+                })
+        else:  # TF movement and detachment if it exists
+            if self.site_empty(self.tf_position - 1):  # Left movement
+                self.events.append(
+                    {"type": "tf_left", "rate": self.tf_move_rate}
+                )
+            if self.site_empty(self.tf_position + 1):  # Right movement
+                self.events.append(
+                    {"type": "tf_right", "rate": self.tf_move_rate}
+                )
+            # TF detachment
+            self.events.append(
+                {"type": "tf_detach", "rate": self.tf_move_rate}
+            )
 
-        if self.logging:
-            self.tf_path.append(new_position)
+        # Calculate total rate
+        total_rate = 0
+        for event in self.events:
+            total_rate += event["rate"]
+        if total_rate == 0:
+            print(self.lattice)
+            raise Exception("The lattice cannot do anything")
 
-        self.lattice[self.tf_position] = 0
-        self.lattice[new_position] = 2
-        self.tf_position = new_position
+        # Calculate cumulative rates
+        prev_cumsum = 0
+        for event in self.events:
+            event["cum_rate"] = event["rate"] + prev_cumsum
+            prev_cumsum += event["cum_rate"]
+
+        return total_rate
+
+    def execute_event(self, total_rate):
+        '''
+        From a list of events, choose what occurs based on probability
+        '''
+        chosen_event = None
+        random_number = self.prng.uniform() * total_rate
+
+        for event in self.events:
+            if random_number < event['cum_rate']:
+                chosen_event = event
+                break
+
+        if chosen_event is None:
+            raise Exception('No even was chosen')
+
+        match event['type']:
+            case 'rnap_attach':
+                self.rnap_positions.append(0)
+                self.lattice[0] = 1
+            case 'rnap_move':
+                position = event['rnap_pos']
+                new_position = event['rnap_pos'] + 1
+
+                self.rnap_positions[event['rnap_index']] += 1
+                self.lattice[position] = 0
+                self.lattice[new_position] = 1
+            case 'rnap_detach':
+                self.rnap_positions.pop(event['rnap_index'])
+                self.lattice[event['rnap_pos']] = 0
+            case 'tf_attach':
+                self.tf_position = self.prng.choice(event['possible_sites'])
+                self.lattice[self.tf_position] = 2
+            case 'tf_left':
+                self.lattice[self.tf_position] = 0
+                self.tf_position -= 1
+                self.lattice[self.tf_position] = 2
+            case 'tf_right':
+                self.lattice[self.tf_position] = 0
+                self.tf_position += 1
+                self.lattice[self.tf_position] = 2
+            case 'tf_detach':
+                self.lattice[self.tf_position] = 0
+                self.tf_position = None
+            case _:
+                raise Exception(f'{event["type"]} is not a valid event')
 
     def on_target(self):
+        '''
+        Check if the TF is on the target site.
+        '''
         return self.tf_position == self.target_site
 
     def site_drawing(self, ax, x, y, inside_color='w'):
+        '''
+        Draw a rectangle representing a site.
+        '''
         ax.add_patch(mpatches.Rectangle(
             (x, y), 1, 1, color='k'))
         ax.add_patch(mpatches.Rectangle(
             (x+0.05, y+0.05), 0.9, 0.9, color=inside_color))
 
     def tf_drawing(self, ax, x, y):
+        '''
+        Draw a triangle representing a TF
+        '''
         ax.add_patch(mpatches.CirclePolygon(
             (x+0.5, y+0.5), radius=0.4, color='g', resolution=3
         ))
 
     def rnap_drawing(self, ax, x, y):
+        '''
+        Draw a hexagon representing an RNAP
+        '''
         ax.add_patch(mpatches.CirclePolygon(
             (x+0.5, y+0.5), radius=0.4, color='purple',
             resolution=6
         ))
 
     def visualization_image(self):
+        # TODO: Implement a way to truncate the lattice so that
+        #       only a region of interest is seen
+        '''
+        Generate a visualization of the lattice
+        '''
         plt.axes()
         ax = plt.gca()
         plt.axis('off')
         ax.set_xlim(0, self.lattice_length)
         ax.set_ylim(0, 1.2)
-        plt.text(0, 1.1, f"Step {self.lattice_age}")
+        plt.text(0, 1.1, f"Time: {self.lattice_age}")
         print(self.lattice)
         print(self.rnap_positions)
         for site_number in range(self.lattice_length):
@@ -229,6 +300,7 @@ class Lattice:
         return [plt.gca()]
 
     def visualization_video(self):
+        # Generate a video from a full simulation of the lattice
         self.reset()
         ims = []
         while not self.simulate_step():
