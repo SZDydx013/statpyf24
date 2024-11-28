@@ -45,15 +45,3 @@ plt.axvline(mean_first_passage_time, color='red', linestyle='--',
             label=f"Mean = {mean_first_passage_time:.2f}")
 plt.legend()
 plt.show()
-
-sample_lattice = Lattice(
-    lattice_length=10,      # We want this to actually be readable
-    rnap_attach_rate=0,     # There will be no RNAPs in this
-    tf_attach_rate=1,       # TF will attach on the first step
-    tf_move_rate=1,         # TF will move on every step
-    tf_detach_rate=0,       # TF will never detach
-)
-
-ani = sample_lattice.visualization_video()
-
-plt.show()
