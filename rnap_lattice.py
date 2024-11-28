@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 import numpy as np
 from lattice import Lattice
 
-num_simulations = 100
+num_simulations = int(1e4)
 simulated_lattice = Lattice(
     lattice_length=100,
     rnap_attach_rate=0.1,
@@ -13,6 +13,7 @@ simulated_lattice = Lattice(
     tf_attach_rate=0.05,
     tf_move_rate=1,
     tf_detach_rate=0.02,
+    step_limit=1e10,
 )
 
 first_passage_times = []
