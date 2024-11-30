@@ -106,6 +106,8 @@ class Lattice:
         '''
         Compute the time until the TF reaches the target site.
         '''
+        if self.on_target():
+            return self.lattice_age
         while not self.simulate_step():
             if self.step_count > self.step_limit:
                 print("Warning: TF never reached target")
