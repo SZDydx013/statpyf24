@@ -4,7 +4,7 @@ import matplotlib.animation as animation
 from lattice import Lattice
 
 visual_lattice = Lattice(
-    lattice_length=10,
+    lattice_length=10,      # Make the lattice readable for video format
     rnap_attach_rate=0.2,
     rnap_move_rate=0.8,
     rnap_detach_rate=1,
@@ -15,5 +15,5 @@ visual_lattice = Lattice(
 
 (vid_fig, ani) = visual_lattice.visualization_video()
 ffwriter = animation.FFMpegWriter(fps=10)
-ani.save('animation.mp4', writer=ffwriter)
+ani.save('results/rnap_animation.mp4', writer=ffwriter)
 plt.show()

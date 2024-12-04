@@ -5,14 +5,15 @@ Obeys the following rules:
 1) RNAPs can attach to the lattice at site 0 and will detach only at the end of the lattice. One RNAP being on the lattice does not stop another RNAP from attaching at site 0 (ie. multiple RNAPs can be present along the lattice at once). The rate at which new RNAPs attach to the lattice is a fixed value
 2) RNAPs are unidirectional and will only move +1 until they reach the end
 3) TFs can attach and detach from the lattice randomly at some defined rate. This means for each step a TF takes there is a chance it will also just remove itself from the lattice rather than proceed in some direction
-4) 2 molecules cant occupy the same site at once. RNAP movement gets priority and if there is an RNAP in the way, the TF must move the other way rather than overlap with the RNAP
-5) Only 1 TF will be on the lattice at once, though multiple RNAPs can. The total time taken for the TF to reach the target site is what's recorded. If the TF hops off the lattice and randomly attaches back on the lattice at another position the step counter does not reset. The count resets only once the TF has actually hit the target site
+4) 2 molecules cant occupy the same site at once. If there is an RNAP in the way, the TF must move the other way rather than overlap with the RNAP. If the TF is in the way, the RNAP cannot move unti; the TF moves.
+5) Only 1 TF will be on the lattice at once, though multiple RNAPs can. The total time taken for the TF to reach the target site is recorded. If the TF hops off the lattice and randomly attaches back on the lattice at another position the timer does not reset. The time resets only once the TF has actually hit the target site.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.animation as animation
+from joblib import Parallel, delayed
 
 
 class Lattice:
@@ -39,23 +40,25 @@ class Lattice:
             self.target_site = lattice_length // 2
 
         # RNAP parameters
-        # Probability of a new RNAP attaching to site 0 per step
+        # Rate of which RNAP attaches to the start site
         self.rnap_attach_rate = rnap_attach_rate
-        # RNAP always moves forward (+1)
+        # Rate of which each RNAP moves +1
         self.rnap_move_rate = rnap_move_rate
-        # RNAP will detach at a fixed rate at the last site
+        # Rate of which RNAP detaches from the end site
         self.rnap_detach_rate = rnap_detach_rate
 
         # TF parameters
-        # Probability of TF attaching at a random site per step
+        # Rate of which TF will attach to any site if there are no TF particles
         self.tf_attach_rate = tf_attach_rate
-        # Probability of TF detaching from the lattice per step
+        # Rate of which TF will detach randomly
         self.tf_detach_rate = tf_detach_rate
-        # TF can move randomly left (-1) or right (+1)
+        # Rate of which TF will move either direction
         self.tf_move_rate = tf_move_rate
 
         # Simulation parameters
+        # Used to track the paths of particles. Turn off to save memory
         self.logging = logging
+        # Used to avoid stalling the simulation.
         self.step_limit = step_limit
 
         # Random number generator
@@ -69,11 +72,18 @@ class Lattice:
         '''
         # Lattice state variables
         # 0 = empty, 1 = RNAP, 2 = TF
+
+        # Clean up the lattice
         self.lattice = np.zeros(self.lattice_length, dtype=int)
+        # Reset lattice age
         self.lattice_age = 0.0
+        # Reset simulation step count
         self.step_count = 0
+        # Clean up TF tracking from the lattice
         self.tf_position = None
+        # Clean up RNAP tracking from the lattice
         self.rnap_positions = []
+        # Clean up event tracking from the lattice
         self.events = []
 
         # Lattice log varibles
@@ -105,6 +115,8 @@ class Lattice:
     def simulate_to_target(self):
         '''
         Compute the time until the TF reaches the target site.
+        This is done by stepping the simulation until the TF is on the
+        target site.
         '''
         if self.on_target():
             return self.lattice_age
@@ -115,11 +127,76 @@ class Lattice:
 
         return self.lattice_age
 
+    def get_single_first_passage_time(self, initial_TF_position=None):
+        # Avoid parallel simulations from interfering with each other
+        # By creating a new lattice for a full simulation
+        temporary_lattice = Lattice(
+            lattice_length=self.lattice_length,
+            target_site=self.target_site,
+            rnap_attach_rate=self.rnap_attach_rate,
+            rnap_move_rate=self.rnap_move_rate,
+            rnap_detach_rate=self.rnap_detach_rate,
+            tf_attach_rate=self.tf_attach_rate,
+            tf_detach_rate=self.tf_detach_rate,
+            tf_move_rate=self.tf_move_rate,
+            logging=self.logging,
+            step_limit=self.step_limit,
+        )
+
+        # Insert a TF at a given point if given
+        if initial_TF_position is not None:
+            if (
+                initial_TF_position < 0 or
+                initial_TF_position >= temporary_lattice.lattice_length
+            ):
+                raise Exception("Initial TF position is outside lattice")
+            temporary_lattice.place_particle(1, initial_TF_position)
+
+        return temporary_lattice.simulate_to_target()
+
+    def first_passage_time_list(
+        self,
+        num_simulations=1e2,
+        initial_TF_position=None,
+    ):
+        first_passage_times = []
+
+        # Simulate lattice many times
+        first_passage_times = Parallel(n_jobs=-1)(
+            delayed(self.get_single_first_passage_time)(initial_TF_position)
+            for _ in range(num_simulations)
+        )
+
+        # Clear none values from the first passage times
+        valid_first_passage_times = [
+            i for i in first_passage_times if i is not None]
+
+        return valid_first_passage_times
+
+    def first_passage_time_distribution(
+            self,
+            num_simulations=1e2,
+            initial_TF_position=None,
+    ):
+        first_passage_times = self.first_passage_time_list(
+            num_simulations=num_simulations,
+            initial_TF_position=initial_TF_position,
+        )
+
+        # Calculate statistics
+        mean_first_passage_time = np.mean(first_passage_times)
+        std_dev_first_passage_time = np.std(first_passage_times)
+
+        return mean_first_passage_time, std_dev_first_passage_time
+
     def site_empty(self, site_number):
         '''
         Check if the given site is empty.
+        This is used to check if particles can move to the site
         '''
         if site_number < 0 or site_number >= self.lattice_length:
+            # Effectively the same as the particle cannot move out of the
+            # lattice.
             return False  # If the site is out of bounds, it is "occupied"
         return self.lattice[site_number] == 0
 
@@ -142,6 +219,7 @@ class Lattice:
         for rnap_index, position in enumerate(self.rnap_positions):
             new_position = position + 1
 
+            # If the next site is empty, give the RNAP a chance to move
             if self.site_empty(new_position):
                 self.events.append({
                     "type": "rnap_move",
@@ -150,6 +228,7 @@ class Lattice:
                     "rnap_index": rnap_index,
                 })
 
+            # If RNAP is at the end of the lattice, give it a chance to detach
             if new_position >= len(self.lattice):
                 self.events.append({
                     "type": "rnap_detach",
@@ -180,15 +259,17 @@ class Lattice:
                 {"type": "tf_detach", "rate": self.tf_detach_rate}
             )
 
-        # Calculate total rate
+        # Calculate total rate by adding all of the event rates
         total_rate = 0
         for event in self.events:
             total_rate += event["rate"]
         if total_rate == 0:
             print(self.lattice)
+            # This should never happen unless rates were set improperly
             raise Exception("The lattice cannot do anything")
 
-        # Calculate cumulative rates
+        # Calculate cumulative rates by adding the previous rates.
+        # This is to allow for choosing of events
         prev_cumsum = 0
         for event in self.events:
             event["cum_rate"] = event["rate"] + prev_cumsum
@@ -203,43 +284,56 @@ class Lattice:
         chosen_event = None
         random_number = self.prng.uniform() * total_rate
 
+        # Choose a random event from list of events
         for event in self.events:
             if random_number < event['cum_rate']:
                 chosen_event = event
                 break
 
         if chosen_event is None:
+            # This will only happen if the random number generator
+            # is not working and managed to generate a value above 1
             raise Exception('No even was chosen')
 
         match event['type']:
             case 'rnap_attach':
+                # Attach an RNAP to the beginning of the lattice
                 self.rnap_positions.append(0)
                 self.lattice[0] = 1
             case 'rnap_move':
+                # Move the RNAP to the next point in the lattice
                 position = event['rnap_pos']
                 new_position = event['rnap_pos'] + 1
 
+                # Change the RNAP tracker information to match lattice state
                 self.rnap_positions[event['rnap_index']] += 1
+                # Chane lattice state to reflect RNAP movement
                 self.lattice[position] = 0
                 self.lattice[new_position] = 1
             case 'rnap_detach':
+                # Detach RNAP at the end of the lattice
                 self.rnap_positions.pop(event['rnap_index'])
                 self.lattice[event['rnap_pos']] = 0
             case 'tf_attach':
+                # Attach a TF particle at any unoccupied point in the lattice
                 self.tf_position = self.prng.choice(event['possible_sites'])
                 self.lattice[self.tf_position] = 2
             case 'tf_left':
+                # Move the TF particle left
                 self.lattice[self.tf_position] = 0
                 self.tf_position -= 1
                 self.lattice[self.tf_position] = 2
             case 'tf_right':
+                # Move the TF particle right
                 self.lattice[self.tf_position] = 0
                 self.tf_position += 1
                 self.lattice[self.tf_position] = 2
             case 'tf_detach':
+                # Detach the TF particle randomly
                 self.lattice[self.tf_position] = 0
                 self.tf_position = None
             case _:
+                # Should never be seen unless code was changed
                 raise Exception(f'{event["type"]} is not a valid event')
 
     def on_target(self):
@@ -249,10 +343,19 @@ class Lattice:
         return self.tf_position == self.target_site
 
     def place_particle(self, particle, position):
+        '''
+        Allow for easily manipulation of the lattice.
+        Do not change the lattice using class variables as
+        particle trackers and lattice state trackers are independent
+        without proper function usage.
+        '''
         if not (0 <= particle <= 2):
+            # 0 = empty, 1 = TF, 2 = RNAP
             raise Exception(f"{particle} is not a valid particle")
         if not (0 <= position <= len(self.lattice)):
             raise Exception(f"{position} is outside of the lattice")
+
+        # Clear the existing site and the associated particle tracker
         match self.lattice[position]:
             case 1:
                 self.tf_position = None
@@ -261,6 +364,8 @@ class Lattice:
                     if rnap_positon == position:
                         self.rnap_positions.pop[rnap_index]
         self.lattice[position] = 0
+
+        # Place the particle and update the particle tracker
         match particle:
             case 1:
                 if self.tf_position is not None:
@@ -271,6 +376,9 @@ class Lattice:
         self.lattice[position] = particle
 
     def remove_particle(self, position):
+        '''
+        Remove a particle at a lattice position
+        '''
         self.place_particle(0, position)
 
     def site_drawing(self, ax, x, y, inside_color='w'):
@@ -300,31 +408,34 @@ class Lattice:
         ))
 
     def visualization_image(self, time=None):
-        # TODO: Implement a way to truncate the lattice so that
-        #       only a region of interest is seen
         '''
         Generate a visualization of the lattice
         '''
         if time is None:
+            # Multiple images of the same lattice step may be generated.
+            # This is to override the time label.
             time = self.lattice_age
+
         plt.axes()
         ax = plt.gca()
         plt.axis('off')
         ax.set_xlim(0, self.lattice_length)
         ax.set_ylim(0, 1.2)
         plt.text(0, 1.1, f"Time: {round(time, 1)}")
-        # print(self.lattice)
-        # print(self.rnap_positions)
+
         for site_number in range(self.lattice_length):
             if site_number == self.target_site:
                 site_color = 'orange'  # Make target site orange
             else:
-                site_color = 'w'
+                site_color = 'w'  # Make the site white otherwise
+            # Draw the site
             self.site_drawing(ax, site_number, 0, site_color)
             match self.lattice[site_number]:
                 case 1:
+                    # Draw a TF particle if it is present on the site
                     self.rnap_drawing(ax, site_number, 0)
                 case 2:
+                    # Draw a RNAP particle if it is present on the site
                     self.tf_drawing(ax, site_number, 0)
 
         return [ax]
