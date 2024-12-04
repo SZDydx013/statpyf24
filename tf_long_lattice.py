@@ -2,8 +2,12 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from lattice import Lattice
-from joblib import Parallel, delayed
 
+'''
+Get how the length of the lattice affects the first passage time in a simple scenario
+'''
+
+# Increase for greater accuracy
 num_simulations = int(1e2)
 
 

@@ -2,8 +2,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from lattice import Lattice
+'''
+Crowded simulation to get the first passage time distribution into a histogram
+'''
 
-
+# A higher value is more accurate.
 num_simulations = int(1e4)
 
 simulated_lattice = Lattice(

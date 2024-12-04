@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 import matplotlib.pyplot as plt
 from lattice import Lattice
-
+'''
+Get how the initial point of TF affects the first passage time in a simple scenario
+'''
 
 # Time over position
 

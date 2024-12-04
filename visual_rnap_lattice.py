@@ -2,6 +2,9 @@
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from lattice import Lattice
+'''
+Generate a video for a crowded scenario
+'''
 
 visual_lattice = Lattice(
     lattice_length=10,      # Make the lattice readable for video format

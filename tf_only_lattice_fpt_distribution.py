@@ -2,6 +2,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from lattice import Lattice
+'''
+Simple simulation to get the first passage time distribution into a histogram
+'''
 
 
 num_simulations = int(1e4)

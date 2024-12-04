@@ -3,6 +3,10 @@ All of these packages are available to be installed by conda:
 - matplotlib: Drawing graphs and animations
 - numpy: Generating random numbers
 - joblib: Multiprocessing to expedite simulations
+# Repository/Project Structure
+All of the simulation code is inside `lattice.py`.
+
+`lattice.py` does not have a way to show results on its own, the other scripts use `lattice.py` to generate results.
 # Problem Statement
 
 This model examines how a transcription factor (TF) protein locates a specific binding site on a segment of DNA, even amidst other proteins that move along the same segment. This represents a stochastic (random) process—specifically a first-passage process—where the TF aims to reach its target site in a crowded environment. The process is complicated by other molecules that occupy and move along the same DNA strand, like RNA polymerase (RNAP). This dynamic can be modeled as a one-dimensional lattice where the TF performs a random walk while the RNAP moves unidirectionally along the lattice. The TF and the RNAP molecules cannot occupy the same lattice segment simultaneously in this process. The goal is to use Monte Carlo simulations to estimate the time required for the TF to find its target.

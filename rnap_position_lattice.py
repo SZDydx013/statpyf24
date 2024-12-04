@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 import matplotlib.pyplot as plt
 from lattice import Lattice
+'''
+Get how the initial point of TF affects the first passage time in a crowded scenario
+'''
 
-
-# Time over position
-
+# Higher number means more accurate. 1e2 minimum, 1e3 recommended
+# 1e3 takes 1 hour on a Ryzen 7640U. This is the most intensive simulation
 num_simulations = int(1e1)
 
 simulated_lattice = Lattice(

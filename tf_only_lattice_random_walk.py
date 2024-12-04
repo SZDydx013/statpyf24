@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 import matplotlib.pyplot as plt
 from lattice import Lattice
+'''
+Get a random walk of a TF particle in a simple scenario.
+'''
 
 simulated_lattice = Lattice(
     lattice_length=100,
