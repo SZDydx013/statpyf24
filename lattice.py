@@ -26,7 +26,7 @@ class Lattice:
         rnap_move_rate=0.9,
         rnap_detach_rate=1,
         tf_attach_rate=0.01,
-        tf_detach_rate=0.05,
+        tf_detach_rate=0.005,
         tf_move_rate=1.0,
         logging=False,
         step_limit=1e6
