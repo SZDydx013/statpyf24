@@ -26,10 +26,10 @@ class Lattice:
         rnap_move_rate=0.9,
         rnap_detach_rate=1,
         tf_attach_rate=0.01,
-        tf_detach_rate=0.004,
+        tf_detach_rate=0.05,
         tf_move_rate=1.0,
         logging=False,
-        step_limit=1e5
+        step_limit=1e6
     ):
         # Lattice parameters
         self.lattice_length = lattice_length    # Length of the lattice
