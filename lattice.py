@@ -23,10 +23,10 @@ class Lattice:
         lattice_length=100,
         target_site=None,
         rnap_attach_rate=0.2,
-        rnap_move_rate=0.9,
+        rnap_move_rate=1,
         rnap_detach_rate=1,
         tf_attach_rate=0.01,
-        tf_detach_rate=0.001,
+        tf_detach_rate=0.005,
         tf_move_rate=1.0,
         logging=False,
         step_limit=1e6
@@ -217,19 +217,27 @@ class Lattice:
 
         # RNAP movement and detachment
         for rnap_index, position in enumerate(self.rnap_positions):
-            new_position = position + 1
+            new_pos_right = position + 1
+            new_pos_left = position - 1
 
-            # If the next site is empty, give the RNAP a chance to move
-            if self.site_empty(new_position):
+            # If the next site is empty, give the RNAP a chance to move either left or right
+            if self.site_empty(new_pos_right):
                 self.events.append({
-                    "type": "rnap_move",
+                    "type": "rnap_move_right",
+                    "rate": self.rnap_move_rate,
+                    "rnap_pos": position,
+                    "rnap_index": rnap_index,
+                })
+            if self.site_empty(new_pos_left):
+                self.events.append({
+                    "type": "rnap_move_left",
                     "rate": self.rnap_move_rate,
                     "rnap_pos": position,
                     "rnap_index": rnap_index,
                 })
 
             # If RNAP is at the end of the lattice, give it a chance to detach
-            if new_position >= len(self.lattice):
+            if new_pos_right >= len(self.lattice):
                 self.events.append({
                     "type": "rnap_detach",
                     "rate": self.rnap_detach_rate,
@@ -300,14 +308,20 @@ class Lattice:
                 # Attach an RNAP to the beginning of the lattice
                 self.rnap_positions.append(0)
                 self.lattice[0] = 1
-            case 'rnap_move':
-                # Move the RNAP to the next point in the lattice
+            case 'rnap_move_left':
+                # Move the RNAP to the left
+                position = event['rnap_pos']
+                new_position = event['rnap_pos'] - 1
+                # Change the RNAP tracker information to match lattice state
+                self.rnap_positions[event['rnap_index']] -= 1
+                self.lattice[position] = 0
+                self.lattice[new_position] = 1
+            case 'rnap_move_right':
+                # Move the RNAP to the right
                 position = event['rnap_pos']
                 new_position = event['rnap_pos'] + 1
-
                 # Change the RNAP tracker information to match lattice state
                 self.rnap_positions[event['rnap_index']] += 1
-                # Chane lattice state to reflect RNAP movement
                 self.lattice[position] = 0
                 self.lattice[new_position] = 1
             case 'rnap_detach':
